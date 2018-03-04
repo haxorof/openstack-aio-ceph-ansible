@@ -41,3 +41,9 @@ To access OpenStack Instances from Windows 10 it might in some cases not work ou
 - Allow inbound/outbound access in firewall for subnet range 172.29.248.0/22 or 172.29.249.110 - 172.29.249.200 (floating IPs)
 - Allow inbound ICMPv4 from within LAN
 - Allow inbound Multicast DNS traffic on port 5353
+
+**IMPORTANT!** Do not forget to setup static route in your router or on the host machine from where you want to access the instances you create in OpenStack.
+
+| Network/Host IP | Netmask       | Gateway       |
+| --------------- | ------------- | ------------- |
+| 172.29.248.0    | 255.255.252.0 | 192.168.1.200 |
