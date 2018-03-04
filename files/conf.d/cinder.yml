@@ -1,0 +1,18 @@
+---
+storage-infra_hosts:
+  aio1:
+    ip: 172.29.236.100
+
+storage_hosts:
+  aio1:
+    ip: 172.29.236.100
+    container_vars:
+      cinder_backends:
+        limit_container_types: cinder_volume
+        rbd:
+          volume_group: volumes
+          volume_driver: cinder.volume.drivers.rbd.RBDDriver
+          volume_backend_name: rbd
+          rbd_pool: volumes
+          rbd_ceph_conf: /etc/ceph/ceph.conf
+          rbd_user: cinder

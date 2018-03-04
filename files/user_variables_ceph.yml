@@ -1,0 +1,14 @@
+---
+## ceph-ansible AIO settings
+cinder_ceph_client: cinder
+cinder_default_volume_type: RBD
+
+glance_ceph_client: glance
+glance_default_store: rbd
+glance_notification_driver: noop
+glance_rbd_store_pool: images
+
+nova_libvirt_images_rbd_pool: vms
+
+ceph_mons:
+  - 192.168.1.200

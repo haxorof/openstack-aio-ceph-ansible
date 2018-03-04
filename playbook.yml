@@ -1,0 +1,224 @@
+---
+- hosts: openstack
+  gather_facts: no
+  remote_user: ansible
+  become: yes  
+  tasks:
+    - name: Install Python
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+      changed_when: no
+
+- hosts: openstack
+  remote_user: ansible
+  become: yes  
+  tasks:
+    - name: Install system dependencies
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - git
+        - lvm2
+
+    - name: OS device info (nvme0n1)
+      parted:
+        device: /dev/nvme0n1
+      register: device_info
+
+    - name: Data partition 100% (nvme0n1p2)
+      parted:
+        device: /dev/nvme0n1
+        number: 2
+        flags: [ lvm ]
+        state: present
+        part_start: "{{ device_info.partitions[0].end | int }}KiB"
+
+    - name: Ensure volume group ceph exists
+      lvg:
+        vg: ceph
+        pvs: /dev/nvme0n1p2
+        pesize: 32
+
+    - name: Ensure data volume exists
+      lvol:
+        vg: ceph
+        lv: data
+        size: +100%FREE
+
+    - name: Enable and start LVM meta service
+      service:
+        name: lvm2-lvmetad
+        state: started
+        enabled: yes
+
+    - name: Clone ceph-ansible
+      git:
+        repo: "https://github.com/ceph/ceph-ansible.git"
+        dest: "/opt/ceph-ansible"
+        update: yes
+      register: ceph_git_repo
+
+    - name: Ensure site.yml is a copy of site.yml.sample (ceph)
+      copy:
+        remote_src: yes
+        src: /opt/ceph-ansible/site.yml.sample
+        dest: /opt/ceph-ansible/site.yml
+
+    - name: Copy Ansible hosts file (ceph)
+      copy:
+        src: files/ceph/hosts
+        dest: /opt/ceph-ansible/
+
+    - name: Copy Ansible group_vars all.yml file (ceph)
+      copy:
+        src: files/ceph/group_vars/all.yml
+        dest: /opt/ceph-ansible/group_vars/
+
+    - name: Ensure Ceph is installed and configured
+      shell: ansible -i /opt/ceph-ansible/hosts site.yml
+      args:
+        creates: /etc/ceph/ceph.conf
+        chdir: /opt/ceph-ansible
+
+    - name: Clone openStack-ansible
+      git:
+        repo: "https://git.openstack.org/openstack/openstack-ansible"
+        dest: "/opt/openstack-ansible"
+        version: stable/pike
+        update: yes
+      register: os_git_repo
+
+    - name: Determine if bootstrap-ansible.sh has already been executed once
+      block:
+        - name: Retrieve stats for /opt/ansible-runtime
+          stat:
+            path: /opt/ansible-runtime
+          register: os_ansible_path
+        - name: Set fact to determine if upgrade is possble
+          set_fact:
+            upgradable: "{{ os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir | bool }}"
+
+    - name: Execute script bootstrap-ansible.sh
+      shell: scripts/bootstrap-ansible.sh
+      args:
+        creates: /opt/ansible-runtime
+        chdir: /opt/openstack-ansible
+
+    - name: Execute script bootstrap-ansible.sh for upgrade
+      shell: scripts/bootstrap-ansible.sh
+      args:
+        creates: /opt/ansible-runtime
+      when: os_git_repo | changed and upgradable
+
+    - name: Execute script bootstrap-aio.sh
+      shell: scripts/bootstrap-aio.sh
+      args:
+        creates: /etc/openstack_deploy/user_variables.yml
+        chdir: /opt/openstack-ansible
+      environment:
+        BOOTSTRAP_OPTS: "bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no"
+
+    - name: Ensure HEAT service configuration is removed
+      file:
+        path: /etc/openstack_deploy/conf.d/heat.yml
+        state: absent
+
+    - name: Copy user_variables_neutron.yml
+      copy:
+        src: files/user_variables_neutron.yml
+        dest: /etc/openstack_deploy/user_variables_neutron.yml
+
+    - name: Replace user_variables.yml
+      copy:
+        src: files/user_variables.yml
+        dest: /etc/openstack_deploy/user_variables.yml
+
+    - name: Replace user_variables_ceph.yml
+      copy:
+        src: files/user_variables_ceph.yml
+        dest: /etc/openstack_deploy/user_variables_ceph.yml
+
+    - name: Replace cinder.yml
+      copy:
+        src: files/conf.d/cinder.yml
+        dest: /etc/openstack_deploy/conf.d/cinder.yml
+
+    - name: Execute openstack-ansible setup-everything.yml
+      shell: openstack-ansible setup-everything.yml
+      args:
+        creates: /etc/openstack-release
+        chdir: /opt/openstack-ansible/playbooks
+
+    - name: Minor upgrade
+      block:
+        - name: Execute openstack-ansible setup-hosts.yml (upgrade)
+          shell: openstack-ansible setup-hosts.yml
+          args:
+            chdir: /opt/openstack-ansible/playbooks
+          when: os_git_repo | changed and upgradable
+
+        - name: Execute openstack-ansible setup-infrastructure.yml (upgrade)
+          shell: openstack-ansible -e rabbitmq_upgrade=true setup-infrastructure.yml
+          args:
+            chdir: /opt/openstack-ansible/playbooks
+          when: os_git_repo | changed and upgradable
+
+        - name: Execute openstack-ansible setup-openstack.yml (upgrade)
+          shell: openstack-ansible setup-openstack.yml
+          args:
+            chdir: /opt/openstack-ansible/playbooks
+          when: os_git_repo | changed and upgradable
+      when: os_git_repo | changed and upgradable
+
+    - name: Create public network
+      shell: ". /root/openrc && \
+        openstack network list -f value -c Name | grep 'public' || \
+        (openstack network create public --external --provider-network-type flat --provider-physical-network flat --project admin && echo 'created')"
+      register: shell_net
+      changed_when: shell_net.stdout_lines | last == 'created'
+
+    - name: Create subnet in public network
+      shell: ". /root/openrc && \
+        openstack subnet list -f value -c Name | grep 'public-subnet' || \
+        (openstack subnet create public-subnet --network public --subnet-range 172.29.248.0/22 --no-dhcp --allocation-pool start=172.29.249.110,end=172.29.249.200 --gateway 172.29.248.100 && echo 'created')"
+      register: shell_subnet
+      changed_when: shell_subnet.stdout_lines | last == 'created'
+
+    - name: Create test project
+      shell: ". /root/openrc && \
+        openstack project list -f value -c Name | grep 'test' || \
+        (openstack project create test && echo 'created')"
+      register: shell_project
+      changed_when: shell_project.stdout_lines | last == 'created'
+
+    - name: Create test user
+      shell: ". /root/openrc && \
+        openstack user list -f value -c Name | grep 'test' || \
+        (openstack user create --password test --description 'Test User' test && echo 'created')"
+      register: shell_user
+      changed_when: shell_user.stdout_lines | last == 'created'
+
+    - name: Assign test user access rights to test project
+      shell: ". /root/openrc && \
+        openstack role assignment list --user test --names -c Role -f value | grep '_member_' || \
+        (openstack role add --user test --project test _member_ && echo 'added')"
+      register: shell_member
+      changed_when: shell_member.stdout_lines | last == 'added'
+
+    - name: Create flavors
+      shell: ". /root/openrc && \
+        openstack flavor list -f value -c Name | grep '{{ item.name }}' || \
+        ({{ item.cmd }} && echo 'created')"
+      register: shell_flavor
+      changed_when: shell_flavor.stdout_lines | last == 'created'
+      with_items:
+        - name: "m1.tiny"
+          cmd: "openstack flavor create --vcpus 1 --disk 1 --ram 512 m1.tiny"
+        - name: "m1.small"
+          cmd: "openstack flavor create --vcpus 1 --disk 20 --ram 2048 m1.small"
+        - name: "m1.medium"
+          cmd: "openstack flavor create --vcpus 2 --disk 40 --ram 4096 m1.medium"
+        - name: "m1.large"
+          cmd: "openstack flavor create --vcpus 4 --disk 80 --ram 8192 m1.large"
+        - name: "m1.xlarge"
+          cmd: "openstack flavor create --vcpus 8 --disk 160 --ram 16384 m1.xlarge"

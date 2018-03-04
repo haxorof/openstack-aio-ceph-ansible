@@ -1,0 +1,10 @@
+localhost   ansible_connetion=local  ansible_user=ansible
+
+[mons]
+localhost
+
+[osds]
+localhost
+
+[mgrs]
+localhost

@@ -1,0 +1,3 @@
+# Required to lower MTU to avoid freezing SSH session and other connection related issues
+neutron_neutron_conf_overrides:
+  global_physnet_mtu: 1400
