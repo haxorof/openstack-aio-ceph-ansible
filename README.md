@@ -6,12 +6,12 @@ Before this playbook is executed:
 
 - Install Ubuntu 16.04 LTS
 - Create user: ansible
-- Manually create OS partition see below (90GB).
+- Manually create OS LVM partition see below (90GB).
   - swap => 5GB
   - /boot => 500MB
   - / => The rest
-  - Only select tasks: System Utilities and OpenSSH Server
-  - IP: 192.168.1.200
+- Only select tasks: System Utilities and OpenSSH Server
+- IP: 192.168.1.200
 
 What do you get after this playbook has been executed?
 
