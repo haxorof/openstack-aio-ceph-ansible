@@ -64,10 +64,10 @@
         src: /opt/ceph-ansible/site.yml.sample
         dest: /opt/ceph-ansible/site.yml
 
-    - name: Copy Ansible hosts file (ceph)
-      copy:
-        src: files/ceph/hosts
-        dest: /opt/ceph-ansible/
+    - name: Create Ansible hosts file from template (ceph)
+      template:
+        src: files/ceph/hosts.j2
+        dest: /opt/ceph-ansible/hosts
 
     - name: Copy Ansible group_vars all.yml file (ceph)
       copy:
@@ -75,7 +75,7 @@
         dest: /opt/ceph-ansible/group_vars/
 
     - name: Ensure Ceph is installed and configured
-      shell: ansible -i /opt/ceph-ansible/hosts site.yml
+      shell: ansible-playbook --become -i /opt/ceph-ansible/hosts site.yml
       args:
         creates: /etc/ceph/ceph.conf
         chdir: /opt/ceph-ansible
@@ -118,10 +118,13 @@
       environment:
         BOOTSTRAP_OPTS: "bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no"
 
-    - name: Ensure HEAT service configuration is removed
+    - name: Ensure service configuration is removed
       file:
-        path: /etc/openstack_deploy/conf.d/heat.yml
+        path: /etc/openstack_deploy/conf.d/{{ item }}.yml
         state: absent
+      with_items:
+        - heat
+        - swift
 
     - name: Copy user_variables_neutron.yml
       copy:

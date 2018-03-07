@@ -17,7 +17,7 @@ What do you get after this playbook has been executed?
 
 - Ceph configued with BlueStore
 - OpenStack release Pike (All-In-One)
-- OpenStack HEAT excluded
+- OpenStack HEAT and Swift services are excluded
 - Ceph used by all OpenStack services
 - Network 'public' setup for floating IPs
 - Test project create with test user (password: test)
