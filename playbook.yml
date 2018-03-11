@@ -5,13 +5,45 @@
   become: yes  
   tasks:
     - name: Install Python
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal aptitude)
       changed_when: no
+      tags:
+        - always
 
 - hosts: openstack
   remote_user: ansible
   become: yes  
   tasks:
+    - name: Generate SSH keys
+      shell: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -q -N ""
+      args:
+        creates: /root/.ssh/id_rsa
+      tags:
+        - always
+
+    - name: Get contents of file id_rsa.pub
+      command: cat /root/.ssh/id_rsa.pub
+      register: id_rsa_pub
+      changed_when: no
+      tags:
+        - always
+
+    - name: Set authorized key for user root to access ansible user
+      authorized_key:
+        user: ansible
+        state: present
+        key: "{{id_rsa_pub.stdout}}"
+      become: no
+      tags:
+        - always
+
+    - name: Apt upgrade all
+      apt:
+        upgrade: yes
+        update_cache: yes
+      tags:
+        - os_upgrade
+    
     - name: Install system dependencies
       package:
         name: "{{ item }}"
@@ -19,11 +51,39 @@
       with_items:
         - git
         - lvm2
+        - software-properties-common
+      tags:
+        - always
+
+    - name: Add Ansible repository
+      apt_repository:
+        repo: 'ppa:ansible/ansible'
+      register: ansible_repo
+      tags:
+        - always
+
+    - name: Apt update cache
+      apt:
+        update_cache: yes
+      when: ansible_repo | changed
+      tags:
+        - always
+
+    - name: Install Ansible
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - ansible
+      tags:
+        - always
 
     - name: OS device info (nvme0n1)
       parted:
         device: /dev/nvme0n1
       register: device_info
+      tags:
+        - ceph
 
     - name: Data partition 100% (nvme0n1p2)
       parted:
@@ -32,24 +92,32 @@
         flags: [ lvm ]
         state: present
         part_start: "{{ device_info.partitions[0].end | int }}KiB"
+      tags:
+        - ceph
 
     - name: Ensure volume group ceph exists
       lvg:
         vg: ceph
         pvs: /dev/nvme0n1p2
         pesize: 32
+      tags:
+        - ceph
 
     - name: Ensure data volume exists
       lvol:
         vg: ceph
         lv: data
         size: +100%FREE
+      tags:
+        - ceph
 
     - name: Enable and start LVM meta service
       service:
         name: lvm2-lvmetad
         state: started
         enabled: yes
+      tags:
+        - always
 
     - name: Clone ceph-ansible
       git:
@@ -57,28 +125,40 @@
         dest: "/opt/ceph-ansible"
         update: yes
       register: ceph_git_repo
+      tags:
+        - ceph
 
     - name: Ensure site.yml is a copy of site.yml.sample (ceph)
       copy:
         remote_src: yes
         src: /opt/ceph-ansible/site.yml.sample
         dest: /opt/ceph-ansible/site.yml
+      tags:
+        - ceph
 
     - name: Create Ansible hosts file from template (ceph)
       template:
         src: files/ceph/hosts.j2
         dest: /opt/ceph-ansible/hosts
+      tags:
+        - ceph
 
     - name: Copy Ansible group_vars all.yml file (ceph)
       copy:
         src: files/ceph/group_vars/all.yml
         dest: /opt/ceph-ansible/group_vars/
+      tags:
+        - ceph
 
     - name: Ensure Ceph is installed and configured
       shell: ansible-playbook --become -i /opt/ceph-ansible/hosts site.yml
       args:
         creates: /etc/ceph/ceph.conf
         chdir: /opt/ceph-ansible
+      environment:
+        ANSIBLE_HOST_KEY_CHECKING: False
+      tags:
+        - ceph
 
     - name: Clone openStack-ansible
       git:
@@ -87,6 +167,8 @@
         version: stable/pike
         update: yes
       register: os_git_repo
+      tags:
+        - openstack
 
     - name: Determine if bootstrap-ansible.sh has already been executed once
       block:
@@ -97,18 +179,24 @@
         - name: Set fact to determine if upgrade is possble
           set_fact:
             upgradable: "{{ os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir | bool }}"
+      tags:
+        - openstack
 
     - name: Execute script bootstrap-ansible.sh
       shell: scripts/bootstrap-ansible.sh
       args:
         creates: /opt/ansible-runtime
         chdir: /opt/openstack-ansible
+      tags:
+        - openstack
 
     - name: Execute script bootstrap-ansible.sh for upgrade
       shell: scripts/bootstrap-ansible.sh
       args:
         creates: /opt/ansible-runtime
       when: os_git_repo | changed and upgradable
+      tags:
+        - openstack
 
     - name: Execute script bootstrap-aio.sh
       shell: scripts/bootstrap-aio.sh
@@ -117,6 +205,8 @@
         chdir: /opt/openstack-ansible
       environment:
         BOOTSTRAP_OPTS: "bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no"
+      tags:
+        - openstack
 
     - name: Ensure service configuration is removed
       file:
@@ -125,32 +215,44 @@
       with_items:
         - heat
         - swift
+      tags:
+        - openstack
 
     - name: Copy user_variables_neutron.yml
       copy:
         src: files/user_variables_neutron.yml
         dest: /etc/openstack_deploy/user_variables_neutron.yml
+      tags:
+        - openstack
 
     - name: Replace user_variables.yml
       copy:
         src: files/user_variables.yml
         dest: /etc/openstack_deploy/user_variables.yml
+      tags:
+        - openstack
 
     - name: Replace user_variables_ceph.yml
       copy:
         src: files/user_variables_ceph.yml
         dest: /etc/openstack_deploy/user_variables_ceph.yml
+      tags:
+        - openstack
 
     - name: Replace cinder.yml
       copy:
         src: files/conf.d/cinder.yml
         dest: /etc/openstack_deploy/conf.d/cinder.yml
+      tags:
+        - openstack
 
     - name: Execute openstack-ansible setup-everything.yml
       shell: openstack-ansible setup-everything.yml
       args:
         creates: /etc/openstack-release
         chdir: /opt/openstack-ansible/playbooks
+      tags:
+        - openstack
 
     - name: Minor upgrade
       block:
@@ -172,6 +274,8 @@
             chdir: /opt/openstack-ansible/playbooks
           when: os_git_repo | changed and upgradable
       when: os_git_repo | changed and upgradable
+      tags:
+        - openstack
 
     - name: Create public network
       shell: ". /root/openrc && \
@@ -179,6 +283,8 @@
         (openstack network create public --external --provider-network-type flat --provider-physical-network flat --project admin && echo 'created')"
       register: shell_net
       changed_when: shell_net.stdout_lines | last == 'created'
+      tags:
+        - openstack
 
     - name: Create subnet in public network
       shell: ". /root/openrc && \
@@ -186,6 +292,8 @@
         (openstack subnet create public-subnet --network public --subnet-range 172.29.248.0/22 --no-dhcp --allocation-pool start=172.29.249.110,end=172.29.249.200 --gateway 172.29.248.100 && echo 'created')"
       register: shell_subnet
       changed_when: shell_subnet.stdout_lines | last == 'created'
+      tags:
+        - openstack
 
     - name: Create test project
       shell: ". /root/openrc && \
@@ -193,6 +301,8 @@
         (openstack project create test && echo 'created')"
       register: shell_project
       changed_when: shell_project.stdout_lines | last == 'created'
+      tags:
+        - openstack
 
     - name: Create test user
       shell: ". /root/openrc && \
@@ -200,6 +310,8 @@
         (openstack user create --password test --description 'Test User' test && echo 'created')"
       register: shell_user
       changed_when: shell_user.stdout_lines | last == 'created'
+      tags:
+        - openstack
 
     - name: Assign test user access rights to test project
       shell: ". /root/openrc && \
@@ -207,6 +319,8 @@
         (openstack role add --user test --project test _member_ && echo 'added')"
       register: shell_member
       changed_when: shell_member.stdout_lines | last == 'added'
+      tags:
+        - openstack
 
     - name: Create flavors
       shell: ". /root/openrc && \
@@ -225,3 +339,5 @@
           cmd: "openstack flavor create --vcpus 4 --disk 80 --ram 8192 m1.large"
         - name: "m1.xlarge"
           cmd: "openstack flavor create --vcpus 8 --disk 160 --ram 16384 m1.xlarge"
+      tags:
+        - openstack
