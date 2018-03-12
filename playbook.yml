@@ -160,7 +160,7 @@
       tags:
         - ceph
 
-    - name: Clone openStack-ansible
+    - name: Clone openstack-ansible
       git:
         repo: "https://git.openstack.org/openstack/openstack-ansible"
         dest: "/opt/openstack-ansible"

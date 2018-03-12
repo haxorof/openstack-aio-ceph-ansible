@@ -33,3 +33,4 @@ ceph_conf_overrides:
 radosgw_interface: interface
 radosgw_address: '0.0.0.0'
 radosgw_address_block: subnet
+radosgw_civetweb_port: 8088
