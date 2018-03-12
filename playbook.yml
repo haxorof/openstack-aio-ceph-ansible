@@ -285,6 +285,7 @@
       changed_when: shell_net.stdout_lines | last == 'created'
       tags:
         - openstack
+        - openstack_post_config
 
     - name: Create subnet in public network
       shell: ". /root/openrc && \
@@ -294,6 +295,7 @@
       changed_when: shell_subnet.stdout_lines | last == 'created'
       tags:
         - openstack
+        - openstack_post_config
 
     - name: Create test project
       shell: ". /root/openrc && \
@@ -303,6 +305,7 @@
       changed_when: shell_project.stdout_lines | last == 'created'
       tags:
         - openstack
+        - openstack_post_config
 
     - name: Create test user
       shell: ". /root/openrc && \
@@ -312,6 +315,7 @@
       changed_when: shell_user.stdout_lines | last == 'created'
       tags:
         - openstack
+        - openstack_post_config
 
     - name: Assign test user access rights to test project
       shell: ". /root/openrc && \
@@ -321,6 +325,7 @@
       changed_when: shell_member.stdout_lines | last == 'added'
       tags:
         - openstack
+        - openstack_post_config
 
     - name: Create flavors
       shell: ". /root/openrc && \
@@ -341,3 +346,32 @@
           cmd: "openstack flavor create --vcpus 8 --disk 160 --ram 16384 m1.xlarge"
       tags:
         - openstack
+        - openstack_post_config
+
+    - name: Download cirros OS image
+      get_url:
+        url: http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
+        dest: ~/cirros-0.4.0-x86_64-disk.img
+      tags:
+        - openstack
+        - openstack_post_config
+        
+    - name: Convert image to raw
+      shell: qemu-img convert -f qcow2 -O raw cirros-0.4.0-x86_64-disk.img cirros-0.4.0-x86_64-disk.raw
+      args:
+        creates: ~/cirros-0.4.0-x86_64-disk.raw
+        chdir: ~/
+      tags:
+        - openstack        
+        - openstack_post_config
+
+    - name: Upload image
+      shell: ". /root/openrc && \
+        openstack image list -f value -c Name | grep 'cirros' || \
+        (openstack image create --file ~/cirros-0.4.0-x86_64-disk.raw --disk-format raw --container-format bare --public cirros && echo 'created')"
+      register: shell_upload
+      changed_when: shell_upload.stdout_lines | last == 'created'
+      tags:
+        - openstack        
+        - openstack_post_config
+      
