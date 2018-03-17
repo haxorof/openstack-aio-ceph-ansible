@@ -12,7 +12,10 @@
 
 - hosts: openstack
   remote_user: ansible
-  become: yes  
+  become: yes
+  vars:
+    data_partition_nr: "{{ data_partition_nr_override | default(2) | int }}"
+    os_partition_index: "{{ os_partition_index_override | default((data_partition_nr | int) - 2) | int }}"
   tasks:
     - name: Generate SSH keys
       shell: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -q -N ""
@@ -85,20 +88,22 @@
       tags:
         - ceph
 
-    - name: Data partition 100% (nvme0n1p2)
+    - name: Data partition 100% (nvme0n1p{{ data_partition_nr }})
       parted:
         device: /dev/nvme0n1
-        number: 2
+        number: "{{ data_partition_nr }}"
         flags: [ lvm ]
         state: present
-        part_start: "{{ device_info.partitions[0].end | int }}KiB"
+        part_start: "{{ part_start_value }}"
+      vars:
+        part_start_value: "{{ device_info.partitions[os_partition_index | int].end | int }}KiB"
       tags:
         - ceph
 
     - name: Ensure volume group ceph exists
       lvg:
         vg: ceph
-        pvs: /dev/nvme0n1p2
+        pvs: "/dev/nvme0n1p{{ data_partition_nr }}"
         pesize: 32
       tags:
         - ceph
@@ -164,46 +169,51 @@
       git:
         repo: "https://git.openstack.org/openstack/openstack-ansible"
         dest: "/opt/openstack-ansible"
-        version: stable/pike
+        version: stable/queens
         update: yes
       register: os_git_repo
       tags:
         - openstack
 
-    - name: Determine if bootstrap-ansible.sh has already been executed once
+    - name: Determine if minor upgrade of OpenStack shall be done
       block:
         - name: Retrieve stats for /opt/ansible-runtime
           stat:
             path: /opt/ansible-runtime
           register: os_ansible_path
-        - name: Set fact to determine if upgrade is possble
+        - name: Set fact to decide if upgrade to be done
           set_fact:
-            upgradable: "{{ os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir | bool }}"
+            do_upgrade: "{{ os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir and os_git_repo | changed }}"
+      tags:
+        - openstack
+
+    - name: Determine if this is a clean install of OpenStack
+      block:
+        - name: Retrieve stats for /etc/openstack-release
+          stat:
+            path: /etc/openstack-release
+          register: openstack_relese_file
+        - name: Set fact to decide if clean install shall be done
+          set_fact:
+            do_install: "{{ openstack_relese_file.stat.exists | bool == false }}"
       tags:
         - openstack
 
     - name: Execute script bootstrap-ansible.sh
       shell: scripts/bootstrap-ansible.sh
       args:
-        creates: /opt/ansible-runtime
         chdir: /opt/openstack-ansible
-      tags:
-        - openstack
-
-    - name: Execute script bootstrap-ansible.sh for upgrade
-      shell: scripts/bootstrap-ansible.sh
-      args:
-        creates: /opt/ansible-runtime
-      when: os_git_repo | changed and upgradable
+      when: do_install | bool or do_upgrade | bool
       tags:
         - openstack
 
     - name: Execute script bootstrap-aio.sh
       shell: scripts/bootstrap-aio.sh
       args:
-        creates: /etc/openstack_deploy/user_variables.yml
         chdir: /opt/openstack-ansible
+        creates: /etc/openstack_deploy/user_variables.yml
       environment:
+        SCENARIO: "aio_lxc"
         BOOTSTRAP_OPTS: "bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no"
       tags:
         - openstack
@@ -215,6 +225,7 @@
       with_items:
         - heat
         - swift
+        #- designate
       tags:
         - openstack
 
@@ -225,10 +236,30 @@
       tags:
         - openstack
 
-    - name: Replace user_variables.yml
-      copy:
-        src: files/user_variables.yml
-        dest: /etc/openstack_deploy/user_variables.yml
+    - name: Ensure debug is set to false
+      replace:
+        path: /etc/openstack_deploy/user_variables.yml
+        regexp: 'debug: True$'
+        replace: 'debug: False'
+        backup: no
+      tags:
+        - openstack
+
+    - name: Ensure tempest is not installed
+      replace:
+        path: /etc/openstack_deploy/user_variables.yml
+        regexp: 'tempest_install: yes$'
+        replace: 'tempest_install: no'
+        backup: no
+      tags:
+        - openstack
+
+    - name: Ensure tempest is not run
+      replace:
+        path: /etc/openstack_deploy/user_variables.yml
+        regexp: 'tempest_run: yes$'
+        replace: 'tempest_run: no'
+        backup: no
       tags:
         - openstack
 
@@ -246,34 +277,34 @@
       tags:
         - openstack
 
-    - name: Execute openstack-ansible setup-everything.yml
-      shell: openstack-ansible setup-everything.yml
+    - name: Execute openstack-ansible setup-hosts.yml
+      shell: openstack-ansible setup-hosts.yml
       args:
-        creates: /etc/openstack-release
         chdir: /opt/openstack-ansible/playbooks
+      when: do_upgrade | bool or do_install | bool
       tags:
         - openstack
 
-    - name: Minor upgrade
-      block:
-        - name: Execute openstack-ansible setup-hosts.yml (upgrade)
-          shell: openstack-ansible setup-hosts.yml
-          args:
-            chdir: /opt/openstack-ansible/playbooks
-          when: os_git_repo | changed and upgradable
+    - name: Set extra variables for infrastructure for minor upgrade
+      set_fact:
+        setup_infra_extra_vars: -e rabbitmq_upgrade=true
+      when: do_upgrade | bool
+      tags:
+        - openstack
 
-        - name: Execute openstack-ansible setup-infrastructure.yml (upgrade)
-          shell: openstack-ansible -e rabbitmq_upgrade=true setup-infrastructure.yml
-          args:
-            chdir: /opt/openstack-ansible/playbooks
-          when: os_git_repo | changed and upgradable
+    - name: Execute openstack-ansible setup-infrastructure.yml
+      shell: openstack-ansible {{ setup_infra_extra_vars | default('') }} setup-infrastructure.yml
+      args:
+        chdir: /opt/openstack-ansible/playbooks
+      when: do_upgrade | bool or do_install | bool
+      tags:
+        - openstack
 
-        - name: Execute openstack-ansible setup-openstack.yml (upgrade)
-          shell: openstack-ansible setup-openstack.yml
-          args:
-            chdir: /opt/openstack-ansible/playbooks
-          when: os_git_repo | changed and upgradable
-      when: os_git_repo | changed and upgradable
+    - name: Execute openstack-ansible setup-openstack.yml
+      shell: openstack-ansible setup-openstack.yml
+      args:
+        chdir: /opt/openstack-ansible/playbooks
+      when: do_upgrade | bool or do_install | bool
       tags:
         - openstack
 

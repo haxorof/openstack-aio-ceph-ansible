@@ -1,13 +1,13 @@
-{{ aio_hostname | default('locahost') }}   ansible_connetion=local  ansible_user=ansible
+{{ aio_hostname | default(ansible_hostname) }}   ansible_connetion=local  ansible_user=ansible
 
 [mons]
-{{ aio_hostname | default('locahost') }}
+{{ aio_hostname | default(ansible_hostname) }}
 
 [osds]
-{{ aio_hostname | default('locahost') }}
+{{ aio_hostname | default(ansible_hostname) }}
 
 [mgrs]
-{{ aio_hostname | default('locahost') }}
+{{ aio_hostname | default(ansible_hostname) }}
 
 [rgws]
-{{ aio_hostname | default('locahost') }}
+{{ aio_hostname | default(ansible_hostname) }}
