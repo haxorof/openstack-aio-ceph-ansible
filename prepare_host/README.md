@@ -1,4 +1,4 @@
-# Configuration required match the preseed.cfg file
+# Configuration required to match the preseed
 
 If you use the `preseed.cfg` file in this directory to install Ubuntu then you need to do some minor configuration because your host partitions will look like this:
 
