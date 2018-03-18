@@ -1,0 +1,19 @@
+;-Serva v3.0 Non-Windows Asset Information File 
+;-Boot/Install:
+;  Ubuntu LTS 16.04 Server
+;-Require:
+;  \SERVA_REPO\ offered as as HTTP root
+;  Extracted Ubuntu 16.04 under \NWA_PXE\ubuntu1604
+;-Notes:
+; - 16.04 has a bug; edit the file /.disk/base_installable add a 1 and save it.
+;
+[PXESERVA_MENU_ENTRY]
+asset    = OpenStack AIO on Ubuntu LTS 16.04 Server
+platform = amd64
+timeout = 1
+
+kernel_bios    = /NWA_PXE/ubuntu1604/install/netboot/ubuntu-installer/amd64/linux
+append_bios    = initrd=/NWA_PXE/ubuntu1604/install/netboot/ubuntu-installer/amd64/initrd.gz vga=788 mirror/country=manual mirror/http/hostname=$IP_BSRV$ mirror/http/directory=/NWA_PXE/ubuntu1604 mirror/http/proxy="" live-installer/net-image=http://$IP_BSRV$/NWA_PXE/ubuntu1604/install/filesystem.squashfs netcfg/hostname=aio1 hostname=aio1 auto=true url=http://$IP_BSRV$/NWA_PXE/openstack/preseed.cfg
+ 
+kernel_efi64   = /NWA_PXE/ubuntu1604/install/netboot/ubuntu-installer/amd64/linux
+append_efi64   = initrd=/NWA_PXE/ubuntu1604/install/netboot/ubuntu-installer/amd64/initrd.gz vga=788 mirror/country=manual mirror/http/hostname=$IP_BSRV$ mirror/http/directory=/NWA_PXE/ubuntu1604 mirror/http/proxy="" live-installer/net-image=http://$IP_BSRV$/NWA_PXE/ubuntu1604/install/filesystem.squashfs netcfg/hostname=aio1 hostname=aio1 auto=true url=http://$IP_BSRV$/NWA_PXE/openstack/preseed.cfg

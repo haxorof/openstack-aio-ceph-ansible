@@ -1,5 +1,6 @@
 ---
-- hosts: openstack
+- name: Install Python on target host
+  hosts: aio1
   gather_facts: no
   remote_user: ansible
   become: yes  
@@ -7,29 +8,24 @@
     - name: Install Python
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal aptitude)
       changed_when: no
-      tags:
-        - always
+  tags:
+    - always
 
-- hosts: openstack
+- name: Prepare target host for Ceph and OpenStack installation
+  hosts: aio1
+  gather_facts: no
   remote_user: ansible
   become: yes
-  vars:
-    data_partition_nr: "{{ data_partition_nr_override | default(2) | int }}"
-    os_partition_index: "{{ os_partition_index_override | default((data_partition_nr | int) - 2) | int }}"
   tasks:
     - name: Generate SSH keys
       shell: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -q -N ""
       args:
         creates: /root/.ssh/id_rsa
-      tags:
-        - always
 
     - name: Get contents of file id_rsa.pub
       command: cat /root/.ssh/id_rsa.pub
       register: id_rsa_pub
       changed_when: no
-      tags:
-        - always
 
     - name: Set authorized key for user root to access ansible user
       authorized_key:
@@ -37,17 +33,18 @@
         state: present
         key: "{{id_rsa_pub.stdout}}"
       become: no
-      tags:
-        - always
+
+    - name: Add Ansible repository
+      apt_repository:
+        repo: 'ppa:ansible/ansible'
+      register: ansible_repo
 
     - name: Apt upgrade all
       apt:
         upgrade: yes
         update_cache: yes
-      tags:
-        - os_upgrade
     
-    - name: Install system dependencies
+    - name: Install dependencies
       package:
         name: "{{ item }}"
         state: present
@@ -55,38 +52,31 @@
         - git
         - lvm2
         - software-properties-common
-      tags:
-        - always
-
-    - name: Add Ansible repository
-      apt_repository:
-        repo: 'ppa:ansible/ansible'
-      register: ansible_repo
-      tags:
-        - always
-
-    - name: Apt update cache
-      apt:
-        update_cache: yes
-      when: ansible_repo | changed
-      tags:
-        - always
-
-    - name: Install Ansible
-      package:
-        name: "{{ item }}"
-        state: present
-      with_items:
+        - parted
+        - iptables
+        - kpartx
         - ansible
-      tags:
-        - always
 
+    - name: Enable and start LVM meta service
+      service:
+        name: lvm2-lvmetad
+        state: started
+        enabled: yes
+  tags:
+    - always
+
+- name: Install and configure Ceph
+  hosts: aio1
+  remote_user: ansible
+  become: yes
+  vars:
+    data_partition_nr: "{{ data_partition_nr_override | default(2) | int }}"
+    os_partition_index: "{{ os_partition_index_override | default((data_partition_nr | int) - 2) | int }}"
+  tasks:
     - name: OS device info (nvme0n1)
       parted:
         device: /dev/nvme0n1
       register: device_info
-      tags:
-        - ceph
 
     - name: Data partition 100% (nvme0n1p{{ data_partition_nr }})
       parted:
@@ -97,32 +87,18 @@
         part_start: "{{ part_start_value }}"
       vars:
         part_start_value: "{{ device_info.partitions[os_partition_index | int].end | int }}KiB"
-      tags:
-        - ceph
 
     - name: Ensure volume group ceph exists
       lvg:
         vg: ceph
         pvs: "/dev/nvme0n1p{{ data_partition_nr }}"
         pesize: 32
-      tags:
-        - ceph
 
     - name: Ensure data volume exists
       lvol:
         vg: ceph
         lv: data
         size: +100%FREE
-      tags:
-        - ceph
-
-    - name: Enable and start LVM meta service
-      service:
-        name: lvm2-lvmetad
-        state: started
-        enabled: yes
-      tags:
-        - always
 
     - name: Clone ceph-ansible
       git:
@@ -130,30 +106,22 @@
         dest: "/opt/ceph-ansible"
         update: yes
       register: ceph_git_repo
-      tags:
-        - ceph
 
     - name: Ensure site.yml is a copy of site.yml.sample (ceph)
       copy:
         remote_src: yes
         src: /opt/ceph-ansible/site.yml.sample
         dest: /opt/ceph-ansible/site.yml
-      tags:
-        - ceph
 
     - name: Create Ansible hosts file from template (ceph)
       template:
         src: files/ceph/hosts.j2
         dest: /opt/ceph-ansible/hosts
-      tags:
-        - ceph
 
     - name: Copy Ansible group_vars all.yml file (ceph)
       copy:
         src: files/ceph/group_vars/all.yml
         dest: /opt/ceph-ansible/group_vars/
-      tags:
-        - ceph
 
     - name: Ensure Ceph is installed and configured
       shell: ansible-playbook --become -i /opt/ceph-ansible/hosts site.yml
@@ -162,9 +130,14 @@
         chdir: /opt/ceph-ansible
       environment:
         ANSIBLE_HOST_KEY_CHECKING: False
-      tags:
-        - ceph
+  tags:
+    - ceph
 
+- name: Install and configure OpenStack
+  hosts: aio1
+  remote_user: ansible
+  become: yes
+  tasks:
     - name: Clone openstack-ansible
       git:
         repo: "https://git.openstack.org/openstack/openstack-ansible"
@@ -225,7 +198,7 @@
       with_items:
         - heat
         - swift
-        #- designate
+        - designate
       tags:
         - openstack
 

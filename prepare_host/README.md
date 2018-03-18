@@ -19,3 +19,8 @@ To ensure that the partitioning in this play will work you need to set the follo
 data_partition_nr_override: 5
 os_partition_index_override: 1
 ```
+
+## PXE server on Windows
+
+A free alternative if you run Windows and want to use the `preeseed.cfg` file then you can download [Serva](https://www.vercot.com/~serva/default.html) and
+in this directory is a `ServaAsset.inf` which you can use.
