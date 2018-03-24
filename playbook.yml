@@ -8,8 +8,22 @@
     - name: Install Python
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal aptitude)
       changed_when: no
+    
+    - name: Removes mitigations for CVE-2017-5715 (aka Spectre / Variant 2) because of CPU hard lockups in kernel 4.4.0-116
+      # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1745349
+      lineinfile:
+        path: /etc/default/grub
+        state: present
+        regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+        line: 'GRUB_CMDLINE_LINUX_DEFAULT="noibpb"'
+      register: grub_config
+    
+    - name: Update GRUB
+      shell: update-grub
+      when: grub_config | changed
   tags:
-    - always
+    - openstack
+    - ceph
 
 - name: Prepare target host for Ceph and OpenStack installation
   hosts: aio1
@@ -63,7 +77,8 @@
         state: started
         enabled: yes
   tags:
-    - always
+    - openstack
+    - ceph
 
 - name: Install and configure Ceph
   hosts: aio1
@@ -118,10 +133,10 @@
         src: files/ceph/hosts.j2
         dest: /opt/ceph-ansible/hosts
 
-    - name: Copy Ansible group_vars all.yml file (ceph)
-      copy:
-        src: files/ceph/group_vars/all.yml
-        dest: /opt/ceph-ansible/group_vars/
+    - name: Create Ansible group_vars all.yml file (ceph)
+      template:
+        src: files/ceph/group_vars/all.yml.j2
+        dest: /opt/ceph-ansible/group_vars/all.yml
 
     - name: Ensure Ceph is installed and configured
       shell: ansible-playbook --become -i /opt/ceph-ansible/hosts site.yml
@@ -143,10 +158,11 @@
         repo: "https://git.openstack.org/openstack/openstack-ansible"
         dest: "/opt/openstack-ansible"
         version: stable/queens
-        update: yes
+        update: no
       register: os_git_repo
       tags:
         - openstack
+        - openstack_config
 
     - name: Determine if minor upgrade of OpenStack shall be done
       block:
@@ -159,6 +175,7 @@
             do_upgrade: "{{ os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir and os_git_repo | changed }}"
       tags:
         - openstack
+        - openstack_config
 
     - name: Determine if this is a clean install of OpenStack
       block:
@@ -171,14 +188,22 @@
             do_install: "{{ openstack_relese_file.stat.exists | bool == false }}"
       tags:
         - openstack
+        - openstack_config
+
+    - debug:
+        msg: "do_install={{ do_install }}, do_upgrade={{ do_upgrade }}"
+      tags:
+        - openstack
+        - openstack_config
 
     - name: Execute script bootstrap-ansible.sh
       shell: scripts/bootstrap-ansible.sh
       args:
         chdir: /opt/openstack-ansible
-      when: do_install | bool or do_upgrade | bool
+      when: (do_install | bool and not (os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir)) or do_upgrade | bool
       tags:
         - openstack
+        - openstack_config
 
     - name: Execute script bootstrap-aio.sh
       shell: scripts/bootstrap-aio.sh
@@ -187,9 +212,21 @@
         creates: /etc/openstack_deploy/user_variables.yml
       environment:
         SCENARIO: "aio_lxc"
-        BOOTSTRAP_OPTS: "bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no"
+        BOOTSTRAP_OPTS: bootstrap_host_loopback_cinder=no -e bootstrap_host_loopback_swift=no -e bootstrap_host_loopback_nova=no -e bootstrap_host_ceph=no
       tags:
         - openstack
+        - openstack_config
+
+    - name: Ensure service configuration is present
+      copy:
+        remote_src: yes
+        src: /opt/openstack-ansible/etc/openstack_deploy/conf.d/{{ item }}.yml.aio
+        dest: /etc/openstack_deploy/conf.d/{{ item }}.yml
+      with_items:
+        - horizon
+      tags:
+        - openstack
+        - openstack_config
 
     - name: Ensure service configuration is removed
       file:
@@ -201,6 +238,7 @@
         - designate
       tags:
         - openstack
+        - openstack_config
 
     - name: Copy user_variables_neutron.yml
       copy:
@@ -208,6 +246,7 @@
         dest: /etc/openstack_deploy/user_variables_neutron.yml
       tags:
         - openstack
+        - openstack_config
 
     - name: Ensure debug is set to false
       replace:
@@ -217,6 +256,7 @@
         backup: no
       tags:
         - openstack
+        - openstack_config
 
     - name: Ensure tempest is not installed
       replace:
@@ -226,6 +266,7 @@
         backup: no
       tags:
         - openstack
+        - openstack_config
 
     - name: Ensure tempest is not run
       replace:
@@ -235,6 +276,7 @@
         backup: no
       tags:
         - openstack
+        - openstack_config
 
     - name: Replace user_variables_ceph.yml
       copy:
@@ -242,6 +284,7 @@
         dest: /etc/openstack_deploy/user_variables_ceph.yml
       tags:
         - openstack
+        - openstack_config
 
     - name: Replace cinder.yml
       copy:
@@ -249,6 +292,22 @@
         dest: /etc/openstack_deploy/conf.d/cinder.yml
       tags:
         - openstack
+        - openstack_config
+
+    - name: Fetch admin password
+      shell: cat /etc/openstack_deploy/user_secrets.yml | grep keystone_auth_admin_password
+      register: cmd_admin_pass
+      changed_when: false
+      tags:
+        - openstack
+        - openstack_config
+
+    - name: Print admin password
+      debug:
+        var: cmd_admin_pass.stdout
+      tags:
+        - openstack
+        - openstack_config
 
     - name: Execute openstack-ansible setup-hosts.yml
       shell: openstack-ansible setup-hosts.yml
@@ -352,29 +411,40 @@
         - openstack
         - openstack_post_config
 
-    - name: Download cirros OS image
+    - name: Download OS images
       get_url:
-        url: http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
-        dest: ~/cirros-0.4.0-x86_64-disk.img
+        url: "{{ item.url }}"
+        dest: "~/{{ item.dest_filename }}"
+      with_items:
+        - url: http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
+          dest_filename: cirros-0.4.0-x86_64-disk.img
+        - url: https://cloud-images.ubuntu.com/artful/current/artful-server-cloudimg-amd64.img
+          dest_filename: artful-server-cloudimg-amd64.img
       tags:
         - openstack
         - openstack_post_config
-        
-    - name: Convert image to raw
-      shell: qemu-img convert -f qcow2 -O raw cirros-0.4.0-x86_64-disk.img cirros-0.4.0-x86_64-disk.raw
+
+    - name: Convert qcow2 images to raw
+      shell: "qemu-img convert -f qcow2 -O raw {{ item }}.img {{ item }}.raw"
       args:
-        creates: ~/cirros-0.4.0-x86_64-disk.raw
+        creates: "~/{{ item }}.raw"
         chdir: ~/
+      with_items:
+        - cirros-0.4.0-x86_64-disk
+        - artful-server-cloudimg-amd64
       tags:
         - openstack        
         - openstack_post_config
 
     - name: Upload image
       shell: ". /root/openrc && \
-        openstack image list -f value -c Name | grep 'cirros' || \
-        (openstack image create --file ~/cirros-0.4.0-x86_64-disk.raw --disk-format raw --container-format bare --public cirros && echo 'created')"
+        openstack image list -f value -c Name | grep '{{ item }}' || \
+        (openstack image create --file ~/{{ item }}.raw --disk-format raw --container-format bare --public {{ item }} && echo 'created')"
       register: shell_upload
       changed_when: shell_upload.stdout_lines | last == 'created'
+      with_items:
+        - cirros-0.4.0-x86_64-disk
+        - artful-server-cloudimg-amd64
       tags:
         - openstack        
         - openstack_post_config

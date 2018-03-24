@@ -1,6 +1,6 @@
 # openstack-aio-ceph-ansible
 
-Install and configure OpenStack (Pike) AIO to use Ceph and work on an Intel NUC (NUC7i7BNH) 32GB RAM with a single 500GB M.2 SSD disk
+Install and configure OpenStack (Queens) AIO to use Ceph and work on an Intel NUC (NUC7i7BNH) 32GB RAM with a single 500GB M.2 SSD disk
 
 Before this playbook is executed:
 
@@ -17,7 +17,7 @@ What do you get after this playbook has been executed?
 
 - Ceph configued with BlueStore
 - OpenStack release Queens (All-In-One)
-- OpenStack HEAT and Swift services are excluded
+- OpenStack HEAT, Swift and Designate services are excluded
 - Ceph used by all OpenStack services
 - Network 'public' setup for floating IPs
 - Test project create with test user (password: test)

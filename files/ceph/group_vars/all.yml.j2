@@ -21,7 +21,7 @@ common_single_host_mode: true
 
 generate_fsid: false
 # If you want you can generate a new fsid using command uuidgen 
-fsid: a9cb5460-373a-4b61-95cd-923ef6d1a14a
+fsid: {{ ceph_fsid | default('a9cb5460-373a-4b61-95cd-923ef6d1a14a') }}
 
 # To be able to remove pools add: "mon allow pool delete: true"
 ceph_conf_overrides:
