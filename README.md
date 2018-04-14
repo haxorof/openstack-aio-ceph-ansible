@@ -2,7 +2,7 @@
 
 Install and configure OpenStack (Queens) AIO to use Ceph and work on an Intel NUC (NUC7i7BNH) 32GB RAM with a single 500GB M.2 SSD disk
 
-Before this playbook is executed:
+Before this playbook (setup-everything.yml) is executed:
 
 - Install Ubuntu 16.04 LTS
 - Create user: ansible

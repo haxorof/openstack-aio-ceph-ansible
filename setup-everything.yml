@@ -1,0 +1,14 @@
+---
+- import_playbook: prepare-host.yml
+  tags:
+    - ceph
+    - openstack
+- import_playbook: setup-ceph.yml
+  tags:
+    - ceph
+- import_playbook: setup-aio.yml
+  tags:
+    - openstack
+- import_playbook: post-aio.yml
+  tags:
+    - openstack

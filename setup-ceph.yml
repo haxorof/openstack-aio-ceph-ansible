@@ -1,0 +1,66 @@
+---
+- name: Install and configure Ceph
+  hosts: aio1
+  remote_user: ansible
+  become: yes
+  vars:
+    data_partition_nr: "{{ data_partition_nr_override | default(2) | int }}"
+    os_partition_index: "{{ os_partition_index_override | default((data_partition_nr | int) - 2) | int }}"
+  tasks:
+    - name: OS device info (nvme0n1)
+      parted:
+        device: /dev/nvme0n1
+      register: device_info
+
+    - name: Data partition 100% (nvme0n1p{{ data_partition_nr }})
+      parted:
+        device: /dev/nvme0n1
+        number: "{{ data_partition_nr }}"
+        flags: [ lvm ]
+        state: present
+        part_start: "{{ part_start_value }}"
+      vars:
+        part_start_value: "{{ device_info.partitions[os_partition_index | int].end | int }}KiB"
+
+    - name: Ensure volume group ceph exists
+      lvg:
+        vg: ceph
+        pvs: "/dev/nvme0n1p{{ data_partition_nr }}"
+        pesize: 32
+
+    - name: Ensure data volume exists
+      lvol:
+        vg: ceph
+        lv: data
+        size: +100%FREE
+
+    - name: Clone ceph-ansible
+      git:
+        repo: "https://github.com/ceph/ceph-ansible.git"
+        dest: "/opt/ceph-ansible"
+        update: yes
+      register: ceph_git_repo
+
+    - name: Ensure site.yml is a copy of site.yml.sample (ceph)
+      copy:
+        remote_src: yes
+        src: /opt/ceph-ansible/site.yml.sample
+        dest: /opt/ceph-ansible/site.yml
+
+    - name: Create Ansible hosts file from template (ceph)
+      template:
+        src: files/ceph/hosts.j2
+        dest: /opt/ceph-ansible/hosts
+
+    - name: Create Ansible group_vars all.yml file (ceph)
+      template:
+        src: files/ceph/group_vars/all.yml.j2
+        dest: /opt/ceph-ansible/group_vars/all.yml
+
+    - name: Ensure Ceph is installed and configured
+      shell: ansible-playbook --become -i /opt/ceph-ansible/hosts site.yml
+      args:
+        creates: /etc/ceph/ceph.conf
+        chdir: /opt/ceph-ansible
+      environment:
+        ANSIBLE_HOST_KEY_CHECKING: False
