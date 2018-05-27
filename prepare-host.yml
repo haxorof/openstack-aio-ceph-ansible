@@ -9,13 +9,13 @@
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal aptitude)
       changed_when: no
     
-    - name: Removes mitigations for CVE-2017-5715 (aka Spectre / Variant 2) because of CPU hard lockups in kernel 4.4.0-116
+    - name: Removes mitigations for CVE-2017-5715 (aka Spectre / Variant 2) and Meltdown because of CPU hard lockups in kernel 4.4.0-116
       # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1745349
       lineinfile:
         path: /etc/default/grub
         state: present
         regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
-        line: 'GRUB_CMDLINE_LINUX_DEFAULT="noibpb"'
+        line: 'GRUB_CMDLINE_LINUX_DEFAULT="noibpb nopti"'
       register: grub_config
     
     - name: Update GRUB
