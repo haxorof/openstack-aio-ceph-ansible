@@ -8,9 +8,10 @@
       git:
         repo: "https://git.openstack.org/openstack/openstack-ansible"
         dest: "/opt/openstack-ansible"
-        version: stable/queens
-        update: no
-      register: os_git_repo
+        # Release: Queens
+        version: 17.0.4
+        update: yes
+      register: _os_git_repo
       tags:
         - openstack_config
 
@@ -19,10 +20,10 @@
         - name: Retrieve stats for /opt/ansible-runtime
           stat:
             path: /opt/ansible-runtime
-          register: os_ansible_path
+          register: _os_ansible_path
         - name: Set fact to decide if upgrade to be done
           set_fact:
-            do_upgrade: "{{ os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir and os_git_repo is changed }}"
+            _do_upgrade: "{{ _os_ansible_path.stat.isdir is defined and _os_ansible_path.stat.isdir and _os_git_repo is changed }}"
       tags:
         - openstack_config
 
@@ -31,15 +32,15 @@
         - name: Retrieve stats for /etc/openstack-release
           stat:
             path: /etc/openstack-release
-          register: openstack_relese_file
+          register: _openstack_relese_file
         - name: Set fact to decide if clean install shall be done
           set_fact:
-            do_install: "{{ openstack_relese_file.stat.exists | bool == false }}"
+            _do_install: "{{ _openstack_relese_file.stat.exists | bool == false }}"
       tags:
         - openstack_config
 
     - debug:
-        msg: "do_install={{ do_install }}, do_upgrade={{ do_upgrade }}"
+        msg: "_do_install={{ _do_install }}, _do_upgrade={{ _do_upgrade }}"
       tags:
         - openstack_config
 
@@ -47,7 +48,7 @@
       shell: scripts/bootstrap-ansible.sh
       args:
         chdir: /opt/openstack-ansible
-      when: (do_install | bool and not (os_ansible_path.stat.isdir is defined and os_ansible_path.stat.isdir)) or do_upgrade | bool
+      when: (_do_install | bool and not (_os_ansible_path.stat.isdir is defined and _os_ansible_path.stat.isdir)) or _do_upgrade | bool
       tags:
         - openstack_config
 
@@ -83,10 +84,13 @@
       tags:
         - openstack_config
 
-    - name: Copy user_variables_neutron.yml
+    - name: Copy user variables files
       copy:
-        src: files/user_variables_neutron.yml
-        dest: /etc/openstack_deploy/user_variables_neutron.yml
+        src: files/{{ item }}
+        dest: /etc/openstack_deploy/{{ item }}
+      with_items:
+        - user_variables_neutron.yml
+        - user_variables_other.yml
       tags:
         - openstack_config
 
@@ -133,14 +137,14 @@
 
     - name: Fetch admin password
       shell: cat /etc/openstack_deploy/user_secrets.yml | grep keystone_auth_admin_password
-      register: cmd_admin_pass
+      register: _cmd_admin_pass
       changed_when: false
       tags:
         - openstack_config
 
     - name: Print admin password
       debug:
-        var: cmd_admin_pass.stdout
+        var: _cmd_admin_pass.stdout
       tags:
         - openstack_config
 
@@ -148,21 +152,21 @@
       shell: openstack-ansible setup-hosts.yml
       args:
         chdir: /opt/openstack-ansible/playbooks
-      when: do_upgrade | bool or do_install | bool
+      when: _do_upgrade | bool or _do_install | bool
 
     - name: Set extra variables for infrastructure for minor upgrade
       set_fact:
         setup_infra_extra_vars: -e rabbitmq_upgrade=true
-      when: do_upgrade | bool
+      when: _do_upgrade | bool
 
     - name: Execute openstack-ansible setup-infrastructure.yml
       shell: openstack-ansible {{ setup_infra_extra_vars | default('') }} setup-infrastructure.yml
       args:
         chdir: /opt/openstack-ansible/playbooks
-      when: do_upgrade | bool or do_install | bool
+      when: _do_upgrade | bool or _do_install | bool
 
     - name: Execute openstack-ansible setup-openstack.yml
       shell: openstack-ansible setup-openstack.yml
       args:
         chdir: /opt/openstack-ansible/playbooks
-      when: do_upgrade | bool or do_install | bool
+      when: _do_upgrade | bool or _do_install | bool

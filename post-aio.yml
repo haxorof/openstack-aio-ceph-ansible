@@ -19,43 +19,43 @@
       shell: ". /root/openrc && \
         openstack network list -f value -c Name | grep 'public' || \
         (openstack network create public --external --provider-network-type flat --provider-physical-network flat --project admin && echo 'created')"
-      register: shell_net
-      changed_when: shell_net.stdout_lines | last == 'created'
+      register: _shell_net
+      changed_when: _shell_net.stdout_lines | last == 'created'
 
     - name: Create subnet in public network
       shell: ". /root/openrc && \
         openstack subnet list -f value -c Name | grep 'public-subnet' || \
         (openstack subnet create public-subnet --network public --subnet-range 172.29.248.0/22 --no-dhcp --allocation-pool start=172.29.249.110,end=172.29.249.200 --gateway 172.29.248.100 && echo 'created')"
-      register: shell_subnet
-      changed_when: shell_subnet.stdout_lines | last == 'created'
+      register: _shell_subnet
+      changed_when: _shell_subnet.stdout_lines | last == 'created'
 
     - name: Create test project
       shell: ". /root/openrc && \
         openstack project list -f value -c Name | grep 'test' || \
         (openstack project create test && echo 'created')"
-      register: shell_project
-      changed_when: shell_project.stdout_lines | last == 'created'
+      register: _shell_project
+      changed_when: _shell_project.stdout_lines | last == 'created'
 
     - name: Create test user
       shell: ". /root/openrc && \
         openstack user list -f value -c Name | grep 'test' || \
         (openstack user create --password test --description 'Test User' test && echo 'created')"
-      register: shell_user
-      changed_when: shell_user.stdout_lines | last == 'created'
+      register: _shell_user
+      changed_when: _shell_user.stdout_lines | last == 'created'
 
     - name: Assign test user access rights to test project
       shell: ". /root/openrc && \
         openstack role assignment list --user test --names -c Role -f value | grep '_member_' || \
         (openstack role add --user test --project test _member_ && echo 'added')"
-      register: shell_member
-      changed_when: shell_member.stdout_lines | last == 'added'
+      register: _shell_member
+      changed_when: _shell_member.stdout_lines | last == 'added'
 
     - name: Create flavors
       shell: ". /root/openrc && \
         openstack flavor list -f value -c Name | grep '{{ item.name }}' || \
         ({{ item.cmd }} && echo 'created')"
-      register: shell_flavor
-      changed_when: shell_flavor.stdout_lines | last == 'created'
+      register: _shell_flavor
+      changed_when: _shell_flavor.stdout_lines | last == 'created'
       with_items:
         - name: "m1.tiny"
           cmd: "openstack flavor create --vcpus 1 --disk 1 --ram 512 m1.tiny"
@@ -85,6 +85,6 @@
       shell: ". /root/openrc && \
         openstack image list -f value -c Name | grep '{{ item.name }}' || \
         (openstack image create --file ~/{{ item.name }}.raw --disk-format raw --container-format bare --public {{ item.name }} && echo 'created')"
-      register: shell_upload
-      changed_when: shell_upload.stdout_lines | last == 'created'
+      register: _shell_upload
+      changed_when: _shell_upload.stdout_lines | last == 'created'
       with_items: "{{ upload_images }}"

@@ -39,7 +39,7 @@
         repo: "https://github.com/ceph/ceph-ansible.git"
         dest: "/opt/ceph-ansible"
         update: yes
-      register: ceph_git_repo
+      register: _ceph_git_repo
 
     - name: Ensure site.yml is a copy of site.yml.sample (ceph)
       copy:
@@ -60,7 +60,8 @@
     - name: Ensure Ceph is installed and configured
       shell: ansible-playbook --become -i /opt/ceph-ansible/hosts site.yml
       args:
-        creates: /etc/ceph/ceph.conf
         chdir: /opt/ceph-ansible
+        #creates: /etc/ceph/ceph.conf
       environment:
         ANSIBLE_HOST_KEY_CHECKING: False
+      when: _ceph_git_repo is changed

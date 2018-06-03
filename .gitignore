@@ -1,3 +1,3 @@
-playbook.retry
+*.retry
 # In the all.yml file below does not contain generic configuration
 group_vars/all.yml

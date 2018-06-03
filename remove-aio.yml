@@ -1,0 +1,60 @@
+---
+- name: Remove OpenStack AIO
+  hosts: aio1
+  remote_user: ansible
+  become: yes
+  tasks:
+    - name: Execute openstack-ansible lxc-containers-destroy.yml
+      shell: openstack-ansible -e force_containers_destroy=yes -e force_containers_data_destroy=yes  lxc-containers-destroy.yml
+      args:
+        chdir: /opt/openstack-ansible/playbooks
+
+    - name: On the host stop all of the services that run locally and not within a container
+      shell: "systemctl stop {{ item }}"
+      with_items:
+        - nova-*
+        - cinder-*
+        - keystone-*
+        - swift-*
+        - neutron-*
+        - haproxy
+    
+    - name: Uninstall the core services that were installed.
+      shell: "for i in $(pip freeze | grep -e \"nova\\|neutron\\|keystone\\|swift\\|cinder\"); do pip -v uninstall -y $i; done"
+
+    - name: Uninstall packages
+      package:
+        name: "{{ item }}"
+        state: absent
+      with_items:
+        - libvirt-*
+        - libvirt0
+        - kpartx
+
+    - name: Clear fstab from /openstack
+      lineinfile:
+        dest: /etc/fstab
+        regexp: "^/openstack.*"
+        state: absent
+
+    - name: Remove files and diretories
+      file: 
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /openstack
+        - /etc/neutron
+        - /etc/nova
+        - /etc/swift
+        - /etc/cinder
+        - /var/log/neutron
+        - /var/log/nova
+        - /var/log/swift
+        - /var/log/cinder
+        - /root/.pip
+        - /etc/apt/apt.conf.d/00apt-cacher-proxy
+        - /etc/haproxy
+        - /etc/openstack_deploy
+        - /etc/openstack-release
+        - /opt/ansible-runtime
+        - /opt/openstack-ansible

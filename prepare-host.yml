@@ -16,11 +16,11 @@
         state: present
         regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
         line: 'GRUB_CMDLINE_LINUX_DEFAULT="noibpb nopti"'
-      register: grub_config
+      register: _grub_config
     
     - name: Update GRUB
       shell: update-grub
-      when: grub_config is changed
+      when: _grub_config is changed
 
 - name: Prepare target host for Ceph and OpenStack installation
   hosts: aio1
@@ -35,20 +35,19 @@
 
     - name: Get contents of file id_rsa.pub
       command: cat /root/.ssh/id_rsa.pub
-      register: id_rsa_pub
+      register: _id_rsa_pub
       changed_when: no
 
     - name: Set authorized key for user root to access ansible user
       authorized_key:
         user: ansible
         state: present
-        key: "{{id_rsa_pub.stdout}}"
+        key: "{{_id_rsa_pub.stdout}}"
       become: no
 
     - name: Add Ansible repository
       apt_repository:
         repo: 'ppa:ansible/ansible'
-      register: ansible_repo
 
     - name: Apt upgrade all
       apt:
