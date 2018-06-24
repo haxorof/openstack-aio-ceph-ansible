@@ -59,6 +59,8 @@
       with_items:
         - name: "m1.tiny"
           cmd: "openstack flavor create --vcpus 1 --disk 1 --ram 512 m1.tiny"
+        - name: "m1.smaller"
+          cmd: "openstack flavor create --vcpus 1 --disk 10 --ram 1024 m1.smaller"
         - name: "m1.small"
           cmd: "openstack flavor create --vcpus 1 --disk 20 --ram 2048 m1.small"
         - name: "m1.medium"
