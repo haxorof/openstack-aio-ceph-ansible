@@ -9,7 +9,7 @@
         repo: "https://git.openstack.org/openstack/openstack-ansible"
         dest: "/opt/openstack-ansible"
         # Release: Queens
-        version: 17.0.4
+        version: 17.0.7
         update: yes
       register: _os_git_repo
       tags:
@@ -23,7 +23,7 @@
           register: _os_ansible_path
         - name: Set fact to decide if upgrade to be done
           set_fact:
-            _do_upgrade: "{{ _os_ansible_path.stat.isdir is defined and _os_ansible_path.stat.isdir and _os_git_repo is changed }}"
+            _do_upgrade: "{{ (_os_ansible_path.stat.isdir is defined and _os_ansible_path.stat.isdir and _os_git_repo is changed) or (force_aio_upgrade | default(false)) | bool }}"
       tags:
         - openstack_config
 
@@ -35,7 +35,7 @@
           register: _openstack_relese_file
         - name: Set fact to decide if clean install shall be done
           set_fact:
-            _do_install: "{{ _openstack_relese_file.stat.exists | bool == false }}"
+            _do_install: "{{ (_openstack_relese_file.stat.exists | bool == false) or ((force_aio_install | default(false)) | bool) }}"
       tags:
         - openstack_config
 
