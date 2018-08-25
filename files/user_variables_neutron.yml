@@ -1,7 +1,7 @@
 # Lower MTU if you experience issues related to this like freezing SSH session and other connection related issues
-neutron_neutron_conf_overrides:
-  global_physnet_mtu: 1500
-  path_mtu: 1500
+# neutron_neutron_conf_overrides:
+#   global_physnet_mtu: 1500
+#   path_mtu: 1500
 
 # Verisign public DNS servers
 neutron_dnsmasq_dns_servers: "64.6.64.6,64.6.65.6"
