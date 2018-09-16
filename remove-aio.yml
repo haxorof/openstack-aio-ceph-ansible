@@ -1,7 +1,6 @@
 ---
 - name: Remove OpenStack AIO
   hosts: aio1
-  remote_user: ansible
   become: yes
   tasks:
     - name: Execute openstack-ansible lxc-containers-destroy.yml
@@ -18,7 +17,7 @@
         - swift-*
         - neutron-*
         - haproxy
-    
+
     - name: Uninstall the core services that were installed.
       shell: "for i in $(pip freeze | grep -e \"nova\\|neutron\\|keystone\\|swift\\|cinder\"); do pip -v uninstall -y $i; done"
 
@@ -38,7 +37,7 @@
         state: absent
 
     - name: Remove files and diretories
-      file: 
+      file:
         path: "{{ item }}"
         state: absent
       with_items:

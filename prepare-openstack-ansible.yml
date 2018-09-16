@@ -1,0 +1,124 @@
+---
+- name: Prepare OpenStack Ansible deployment package
+  hosts: aio1_deploy
+  gather_facts: yes
+  become: yes
+  vars:
+    # Release: Rocky
+    openstack_release: 18.0.0.0rc2
+  tasks:
+    - name: Install setup dependencies
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - git
+        - build-essential
+        - ntp
+        - ntpdate
+        # - python-dev
+
+    - name: Clone openstack-ansible
+      git:
+        repo: "https://git.openstack.org/openstack/openstack-ansible"
+        dest: "/opt/openstack-ansible"
+        version: "{{ openstack_release }}"
+        update: yes
+
+    - name: Execute script bootstrap-ansible.sh
+      shell: scripts/bootstrap-ansible.sh
+      args:
+        chdir: /opt/openstack-ansible
+      # environment:
+      #   ANSIBLE_ROLE_FETCH_MODE: galaxy
+
+    - name: Execute script bootstrap-aio.sh
+      shell: scripts/bootstrap-aio.sh
+      args:
+        chdir: /opt/openstack-ansible
+      environment:
+        SCENARIO: aio_basekit
+        BOOTSTRAP_OPTS: bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no
+
+    - name: Copy AIO stop playbook
+      copy:
+        src: files/stop-aio.yml
+        dest: /opt/openstack-ansible/playbooks/
+
+    - name: Ensure service configuration is present
+      copy:
+        remote_src: yes
+        src: /opt/openstack-ansible/etc/openstack_deploy/conf.d/{{ item }}.yml.aio
+        dest: /etc/openstack_deploy/conf.d/{{ item }}.yml
+      with_items:
+        - horizon
+
+    # - name: Ensure service configuration is removed
+    #   file:
+    #     path: /etc/openstack_deploy/conf.d/{{ item }}.yml
+    #     state: absent
+    #   with_items:
+    #     - heat
+    #     - swift
+    #     - designate
+
+    - name: Copy user variables files
+      copy:
+        src: files/{{ item }}
+        dest: /etc/openstack_deploy/{{ item }}
+      with_items:
+        - user_variables_neutron.yml
+
+    - name: Ensure debug is set to false
+      replace:
+        path: /etc/openstack_deploy/user_variables.yml
+        regexp: 'debug: True$'
+        replace: 'debug: False'
+        backup: no
+
+    - name: Ensure tempest is not installed
+      replace:
+        path: /etc/openstack_deploy/user_variables.yml
+        regexp: 'tempest_install: yes$'
+        replace: 'tempest_install: no'
+        backup: no
+
+    - name: Ensure tempest is not run
+      replace:
+        path: /etc/openstack_deploy/user_variables.yml
+        regexp: 'tempest_run: yes$'
+        replace: 'tempest_run: no'
+        backup: no
+
+    - name: Replace user_variables_ceph.yml
+      copy:
+        src: files/user_variables_ceph.yml
+        dest: /etc/openstack_deploy/user_variables_ceph.yml
+
+    - name: Replace cinder.yml
+      copy:
+        src: files/conf.d/cinder.yml
+        dest: /etc/openstack_deploy/conf.d/cinder.yml
+
+    - name: Fetch admin password
+      shell: cat /etc/openstack_deploy/user_secrets.yml | grep keystone_auth_admin_password
+      register: _cmd_admin_pass
+      changed_when: false
+
+    - name: Ensure /opt/bin exists
+      file:
+        path: /opt/bin
+        state: directory
+        mode: 0755
+
+    - name: Create setup script for OpenStack (/opt/bin/setup_openstack.sh)
+      template:
+        src: files/bin/setup_openstack.sh.j2
+        dest: /opt/bin/setup_openstack.sh
+        mode: "u=xrw,g=xr,o=xr"
+      vars:
+        working_dir: /opt/openstack-ansible/playbooks
+
+    - name: Print admin password
+      debug:
+        var: _cmd_admin_pass.stdout

@@ -1,8 +1,14 @@
 ---
-- import_playbook: prepare-host.yml
+- import_playbook: prepare-deploy-host.yml
   tags:
     - ceph
     - openstack
+
+- import_playbook: prepare-target-host.yml
+  tags:
+    - ceph
+    - openstack
+
 - import_playbook: setup-ceph.yml
   tags:
     - ceph

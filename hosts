@@ -1,1 +1,2 @@
 aio1        ansible_host=192.168.1.200  ansible_user=ansible
+aio1_deploy ansible_host=192.168.1.200  ansible_user=ansible

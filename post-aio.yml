@@ -1,16 +1,15 @@
 ---
 - name: Install and configure OpenStack
   hosts: aio1
-  remote_user: ansible
   become: yes
   vars:
     upload_images:
       - url: http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
         name: cirros-0.4.0-x86_64-disk
-        format: qcow2        
+        format: qcow2
       - url: https://cloud-images.ubuntu.com/artful/current/artful-server-cloudimg-amd64.img
         name: artful-server-cloudimg-amd64
-        format: qcow2        
+        format: qcow2
       - url: https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2
         name: CentOS-7-x86_64-GenericCloud
         format: qcow2

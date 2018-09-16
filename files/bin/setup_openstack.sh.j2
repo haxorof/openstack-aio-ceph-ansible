@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+{% if env_vars is defined %}
+{% for key, value in env_vars.items() %}
+export {{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+cd {{ working_dir }}
+openstack-ansible setup-hosts.yml && openstack-ansible setup-infrastructure.yml && openstack-ansible setup-openstack.yml

@@ -1,0 +1,28 @@
+---
+# IMPORTANT! Copy this playbook to /opt/openstack-ansible/playbooks before running it.
+# openstack-ansible stop-aio.yml
+- name: Stop lxc containers
+  hosts: "{{ container_group|default('all_containers') }}"
+  gather_facts: false
+  user: root
+  tasks:
+    - name: Stop a container
+      lxc_container:
+        name: "{{ container_name }}"
+        state: "stopped"
+      delegate_to: "{{ physical_host }}"
+
+- name: Stop host services
+  hosts: 127.0.0.1
+  gather_facts: false
+  user: root
+  tasks:
+    - name: On the host stop all of the services that run locally and not within a container
+      shell: "systemctl stop {{ item }}"
+      with_items:
+        - nova-*
+        - cinder-*
+        - keystone-*
+        - swift-*
+        - neutron-*
+        - haproxy

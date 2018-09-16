@@ -1,0 +1,51 @@
+---
+- name: Prepare Ceph Ansible deployment package
+  hosts: aio1_deploy
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Install setup dependencies
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - git
+        - python-pip
+
+    - name: Clone ceph-ansible
+      git:
+        repo: "https://github.com/ceph/ceph-ansible.git"
+        dest: "/opt/ceph-ansible"
+        update: yes
+
+    - name: Ensure site.yml is a copy of site.yml.sample (ceph)
+      copy:
+        remote_src: yes
+        src: /opt/ceph-ansible/site.yml.sample
+        dest: /opt/ceph-ansible/site.yml
+
+    - name: Create Ansible hosts file from template (ceph)
+      template:
+        src: files/ceph/hosts.j2
+        dest: /opt/ceph-ansible/hosts
+
+    - name: Create Ansible group_vars all.yml file (ceph)
+      template:
+        src: files/ceph/group_vars/all.yml.j2
+        dest: /opt/ceph-ansible/group_vars/all.yml
+
+    - name: Ensure /opt/bin exists
+      file:
+        path: /opt/bin
+        state: directory
+        mode: 0755
+
+    - name: Create setup script for Ceph (/opt/bin/setup_ceph.sh)
+      template:
+        src: files/bin/setup_ceph.sh.j2
+        dest: /opt/bin/setup_ceph.sh
+        mode: "u=xrw,g=xr,o=xr"
+      vars:
+        working_dir: /opt/ceph-ansible
+        env_vars:
+          ANSIBLE_HOST_KEY_CHECKING: False
