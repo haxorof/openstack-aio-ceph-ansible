@@ -1,20 +1,38 @@
 ---
-- import_playbook: prepare-deploy-host.yml
+- import_playbook: prepare-deploy.yml
   tags:
     - ceph
     - openstack
 
-- import_playbook: prepare-target-host.yml
+- import_playbook: prepare-target.yml
   tags:
     - ceph
     - openstack
+
+- import_playbook: prepare-deploy-ceph.yml
+  tags:
+    - ceph
+
+- import_playbook: prepare-target-ceph.yml
+  tags:
+    - ceph
 
 - import_playbook: setup-ceph.yml
   tags:
     - ceph
+
+- import_playbook: prepare-deploy-openstack.yml
+  tags:
+    - openstack
+
+- import_playbook: prepare-target-openstack.yml
+  tags:
+    - openstack
+
 - import_playbook: setup-aio.yml
   tags:
     - openstack
+
 - import_playbook: post-aio.yml
   tags:
     - openstack

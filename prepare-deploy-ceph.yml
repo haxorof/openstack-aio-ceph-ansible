@@ -16,6 +16,7 @@
       git:
         repo: "https://github.com/ceph/ceph-ansible.git"
         dest: "/opt/ceph-ansible"
+        version: v3.2.21
         update: yes
 
     - name: Ensure site.yml is a copy of site.yml.sample (ceph)

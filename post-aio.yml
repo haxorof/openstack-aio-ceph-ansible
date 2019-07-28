@@ -7,8 +7,8 @@
       - url: http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
         name: cirros-0.4.0-x86_64-disk
         format: qcow2
-      - url: https://cloud-images.ubuntu.com/artful/current/artful-server-cloudimg-amd64.img
-        name: artful-server-cloudimg-amd64
+      - url: https://cloud-images.ubuntu.com/disco/current/disco-server-cloudimg-amd64.img
+        name: disco-server-cloudimg-amd64
         format: qcow2
       - url: https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2
         name: CentOS-7-x86_64-GenericCloud

@@ -1,0 +1,23 @@
+---
+- name: Prepare target host for OpenStack
+  hosts: aio1
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Install dependencies
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - bridge-utils
+        - debootstrap
+        - ifenslave
+        - ifenslave-2.6
+        - lsof
+        - lvm2
+        - ntp
+        - ntpdate
+        - openssh-server
+        - sudo
+        - tcpdump
+        - vlan

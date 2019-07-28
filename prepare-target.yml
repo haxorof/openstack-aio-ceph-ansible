@@ -1,0 +1,58 @@
+---
+- name: Basic preparations of target host
+  hosts: aio1
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Install Python
+      raw: test -e /usr/bin/python || (apt-get update && apt-get -y install python-minimal)
+      changed_when: no
+
+    - name: Install aptitude
+      raw: test -e /usr/bin/aptitude || (apt-get update && apt-get -y install aptitude)
+      changed_when: no
+
+    - name: Apt upgrade all
+      apt:
+        upgrade: yes
+        update_cache: yes
+
+    - name: Removes mitigations for CVE-2017-5715 (aka Spectre / Variant 2) and Meltdown because of CPU hard lockups in kernel 4.4.0-116
+      # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1745349
+      lineinfile:
+        path: /etc/default/grub
+        state: present
+        regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+        line: 'GRUB_CMDLINE_LINUX_DEFAULT="noibpb nopti"'
+      register: _grub_config
+
+    - name: Update GRUB
+      shell: update-grub
+      when: _grub_config is changed
+
+    - name: Install utils
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - htop
+
+    - name: Reboot immediately
+      become: true
+      shell: "sleep 5 && reboot"
+      async: 1
+      poll: 0
+      register: _reboot_host
+      when:
+        - _grub_config is defined
+        - _grub_config is changed
+
+    - name: Wait for the reboot to complete
+      wait_for_connection:
+        connect_timeout: 20
+        sleep: 5
+        delay: 5
+        timeout: 300
+      when:
+        - _reboot_host is defined
+        - _reboot_host is changed        

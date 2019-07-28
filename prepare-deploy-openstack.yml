@@ -4,8 +4,8 @@
   gather_facts: yes
   become: yes
   vars:
-    # Release: Rocky
-    openstack_release: 18.0.0.0rc2
+    # Release: Stein
+    openstack_release: 19.0.0
   tasks:
     - name: Install setup dependencies
       package:
@@ -16,7 +16,6 @@
         - build-essential
         - ntp
         - ntpdate
-        # - python-dev
 
     - name: Clone openstack-ansible
       git:
@@ -29,15 +28,12 @@
       shell: scripts/bootstrap-ansible.sh
       args:
         chdir: /opt/openstack-ansible
-      # environment:
-      #   ANSIBLE_ROLE_FETCH_MODE: galaxy
 
     - name: Execute script bootstrap-aio.sh
       shell: scripts/bootstrap-aio.sh
       args:
         chdir: /opt/openstack-ansible
       environment:
-        SCENARIO: aio_basekit
         BOOTSTRAP_OPTS: bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no
 
     - name: Copy AIO stop playbook

@@ -53,10 +53,3 @@
     - ceph
     - openstack
 
-- import_playbook: prepare-ceph-ansible.yml
-  tags:
-    - ceph
-
-- import_playbook: prepare-openstack-ansible.yml
-  tags:
-    - openstack

@@ -17,6 +17,7 @@
         - swift-*
         - neutron-*
         - haproxy
+      ignore_errors: yes
 
     - name: Uninstall the core services that were installed.
       shell: "for i in $(pip freeze | grep -e \"nova\\|neutron\\|keystone\\|swift\\|cinder\"); do pip -v uninstall -y $i; done"
