@@ -1,0 +1,24 @@
+image_hosts:
+  aio1:
+    ip: 172.29.236.100
+    # container_vars:
+    #   # Required because it is not compatible with Ceph Nautilus "mon host" format
+    #   ceph_conf_file: |
+    #     [client.rgw.aio1.rgw0]
+    #     host = aio1
+    #     keyring = /var/lib/ceph/radosgw/ceph-rgw.aio1.rgw0/keyring
+    #     log file = /var/log/ceph/ceph-rgw-aio1.rgw0.log
+    #     rgw frontends = civetweb port=192.168.1.200:8088 num_threads=100
+    #     # Please do not change this file directly since it is managed by Ansible and will be overwritten
+    #     [global]
+    #     cluster network = 192.168.1.200/24
+    #     fsid = {{ ceph_fsid | default('a9cb5460-373a-4b61-95cd-923ef6d1a14a') }}
+    #     mon host = 192.168.1.200
+    #     mon initial members = aio1
+    #     mon_pg_warn_max_per_osd = 0
+    #     osd pool default crush rule = -1
+    #     osd_pool_default_min_size = 1
+    #     osd_pool_default_size = 1
+    #     public network = 192.168.1.200/24
+    #     [osd]
+    #     osd memory target = 23527738572

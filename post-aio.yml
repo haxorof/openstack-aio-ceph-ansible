@@ -4,11 +4,8 @@
   become: yes
   vars:
     upload_images:
-      - url: http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
-        name: cirros-0.4.0-x86_64-disk
-        format: qcow2
-      - url: https://cloud-images.ubuntu.com/disco/current/disco-server-cloudimg-amd64.img
-        name: disco-server-cloudimg-amd64
+      - url: https://cloud-images.ubuntu.com/eoan/current/eoan-server-cloudimg-amd64.img
+        name: eoan-server-cloudimg-amd64
         format: qcow2
       - url: https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2
         name: CentOS-7-x86_64-GenericCloud
@@ -68,6 +65,18 @@
           cmd: "openstack flavor create --vcpus 4 --disk 80 --ram 8192 m1.large"
         - name: "m1.xlarge"
           cmd: "openstack flavor create --vcpus 8 --disk 160 --ram 16384 m1.xlarge"
+        - name: "m1.tiny.volboot"
+          cmd: "openstack flavor create --vcpus 1 --disk 0 --ram 512 m1.tiny.volboot"
+        - name: "m1.smaller.volboot"
+          cmd: "openstack flavor create --vcpus 1 --disk 0 --ram 1024 m1.smaller.volboot"
+        - name: "m1.small.volboot"
+          cmd: "openstack flavor create --vcpus 1 --disk 0 --ram 2048 m1.small.volboot"
+        - name: "m1.medium.volboot"
+          cmd: "openstack flavor create --vcpus 2 --disk 0 --ram 4096 m1.medium.volboot"
+        - name: "m1.large.volboot"
+          cmd: "openstack flavor create --vcpus 4 --disk 0 --ram 8192 m1.large.volboot"
+        - name: "m1.xlarge.volboot"
+          cmd: "openstack flavor create --vcpus 8 --disk 0 --ram 16384 m1.xlarge.volboot"
 
     - name: Download OS images
       get_url:

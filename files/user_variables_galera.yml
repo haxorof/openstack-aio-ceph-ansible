@@ -1,0 +1,3 @@
+dummy:
+#galera_force_change_cluster_name: true
+#galera_ignore_cluster_state: true

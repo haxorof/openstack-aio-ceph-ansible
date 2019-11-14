@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+{% if env_vars is defined %}
+{% for key, value in env_vars.items() %}
+export {{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+cd {{ working_dir }}
+if [ -f $HOME/venvs/ceph/bin/activate ]; then
+  . $HOME/venvs/ceph/bin/activate
+fi
+if [[ -f "{{ working_dir }}/.partitioned" ]]; then
+  echo "--> Already partitioned"
+else
+  pip install -r {{ working_dir }}/requirements.txt
+  ansible-playbook --become -i {{ working_dir }}/hosts lv-create.yml && touch {{ working_dir }}/.partitioned
+fi

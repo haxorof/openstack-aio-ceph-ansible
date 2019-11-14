@@ -4,8 +4,9 @@
   gather_facts: yes
   become: yes
   vars:
-    # Release: Stein
-    openstack_release: 19.0.0
+    # Release: Train
+    # openstack_release: stable/train
+    openstack_release: 19.0.5
   tasks:
     - name: Install setup dependencies
       package:
@@ -14,8 +15,8 @@
       with_items:
         - git
         - build-essential
-        - ntp
-        - ntpdate
+        # - ntp
+        # - ntpdate
 
     - name: Clone openstack-ansible
       git:
@@ -34,67 +35,51 @@
       args:
         chdir: /opt/openstack-ansible
       environment:
-        BOOTSTRAP_OPTS: bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no
+        SCENARIO: aio_lxc
+        BOOTSTRAP_OPTS: bootstrap_host_loopback_cinder=no bootstrap_host_loopback_swift=no bootstrap_host_loopback_nova=no bootstrap_host_ceph=no bootstrap_host_loopback_manila=no
 
     - name: Copy AIO stop playbook
       copy:
         src: files/stop-aio.yml
         dest: /opt/openstack-ansible/playbooks/
 
-    - name: Ensure service configuration is present
-      copy:
-        remote_src: yes
-        src: /opt/openstack-ansible/etc/openstack_deploy/conf.d/{{ item }}.yml.aio
-        dest: /etc/openstack_deploy/conf.d/{{ item }}.yml
-      with_items:
-        - horizon
-
-    # - name: Ensure service configuration is removed
-    #   file:
-    #     path: /etc/openstack_deploy/conf.d/{{ item }}.yml
-    #     state: absent
-    #   with_items:
-    #     - heat
-    #     - swift
-    #     - designate
-
     - name: Copy user variables files
       copy:
         src: files/{{ item }}
         dest: /etc/openstack_deploy/{{ item }}
       with_items:
+        - user_variables_ceph.yml
+        - user_variables_galera.yml
         - user_variables_neutron.yml
 
     - name: Ensure debug is set to false
       replace:
         path: /etc/openstack_deploy/user_variables.yml
-        regexp: 'debug: True$'
-        replace: 'debug: False'
+        regexp: "debug: true$"
+        replace: "debug: false"
         backup: no
 
     - name: Ensure tempest is not installed
-      replace:
+      lineinfile:
         path: /etc/openstack_deploy/user_variables.yml
-        regexp: 'tempest_install: yes$'
-        replace: 'tempest_install: no'
+        regexp: "^tempest_install:"
+        line: "tempest_install: false"
         backup: no
 
     - name: Ensure tempest is not run
-      replace:
+      lineinfile:
         path: /etc/openstack_deploy/user_variables.yml
-        regexp: 'tempest_run: yes$'
-        replace: 'tempest_run: no'
+        regexp: "^tempest_run:"
+        line: "tempest_run: false"
         backup: no
 
-    - name: Replace user_variables_ceph.yml
+    - name: Replace conf.d files
       copy:
-        src: files/user_variables_ceph.yml
-        dest: /etc/openstack_deploy/user_variables_ceph.yml
-
-    - name: Replace cinder.yml
-      copy:
-        src: files/conf.d/cinder.yml
-        dest: /etc/openstack_deploy/conf.d/cinder.yml
+        src: files/conf.d/{{ item }}
+        dest: /etc/openstack_deploy/conf.d/{{ item }}
+      loop:
+        - cinder.yml
+        - glance.yml
 
     - name: Fetch admin password
       shell: cat /etc/openstack_deploy/user_secrets.yml | grep keystone_auth_admin_password

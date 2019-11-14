@@ -1,49 +1,8 @@
 ---
-- name: Prepare target host for Ceph
-  hosts: aio1
+- name: Prepare LVM partitions on target host for Ceph
+  hosts: aio1_deploy
   gather_facts: no
   become: yes
-  vars:
-    data_partition_nr: "{{ data_partition_nr_override | default(2) | int }}"
-    os_partition_index: "{{ os_partition_index_override | default((data_partition_nr | int) - 2) | int }}"
   tasks:
-    - name: Install dependencies
-      package:
-        name: "{{ item }}"
-        state: present
-      with_items:
-        - lvm2
-        - parted
-
-    - name: Enable and start LVM meta service
-      service:
-        name: lvm2-lvmetad
-        state: started
-        enabled: yes
-
-    - name: OS device info (nvme0n1)
-      parted:
-        device: /dev/nvme0n1
-      register: device_info
-
-    - name: Data partition 100% (nvme0n1p{{ data_partition_nr }})
-      parted:
-        device: /dev/nvme0n1
-        number: "{{ data_partition_nr | string }}"
-        flags: [ lvm ]
-        state: present
-        part_start: "{{ part_start_value }}"
-      vars:
-        part_start_value: "{{ device_info.partitions[os_partition_index | int].end | int }}KiB"
-
-    - name: Ensure volume group ceph exists
-      lvg:
-        vg: ceph
-        pvs: "/dev/nvme0n1p{{ data_partition_nr | string }}"
-        pesize: 32
-
-    - name: Ensure data volume exists
-      lvol:
-        vg: ceph
-        lv: data
-        size: +100%FREE
+    - name: Ensure Ceph LVM partitions are created
+      shell: /opt/bin/setup_ceph_lvm.sh

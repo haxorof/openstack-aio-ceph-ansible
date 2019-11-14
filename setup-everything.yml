@@ -36,3 +36,4 @@
 - import_playbook: post-aio.yml
   tags:
     - openstack
+    - poststeps

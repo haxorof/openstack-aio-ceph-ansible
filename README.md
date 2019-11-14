@@ -4,7 +4,7 @@ Install and configure OpenStack AIO to use Ceph and work on an Intel NUC (NUC7i7
 
 Before this playbook (setup-everything.yml) is executed:
 
-- Install Ubuntu 16.04 LTS
+- Install Ubuntu 18.04 LTS
 - Create user: ansible
 - Manually create OS LVM partition see below (90GB).
   - swap => 5GB
@@ -17,7 +17,7 @@ What do you get after this playbook has been executed?
 
 - Ceph configued with BlueStore
 - OpenStack release (All-In-One)
-- OpenStack basekit + Horizon
+- OpenStack services: Cinder, Glance, Nova, Neutron, Horizon
 - Ceph used by all OpenStack services
 - Network 'public' setup for floating IPs
 - Test project create with test user (password: test)

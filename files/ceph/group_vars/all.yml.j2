@@ -1,44 +1,77 @@
 ---
-# Dummy variable to avoid error because ansible does not recognize the
-# file as a good configuration file when no variable in it.
-dummy:
-
-cluster: ceph
-
-openstack_config: true
 ceph_origin: repository
 ceph_repository: community
+#ceph_stable_release: nautilus
 ceph_stable_release: luminous
 
-osd_objectstore: bluestore
+# Required by v3, not v4
 osd_scenario: lvm
+
+dashboard_enabled: false
+
+#mons
+monitor_interface: eno1
+monitor_address: 0.0.0.0
+
+#osds
+logfile_path: ./lv-create.log
+
+journal_size: 5120 # OSD journal size in MB
+nvme_device: /dev/nvme0n1p5
+nvme_vg_name: ceph
+nvme_device_lvs:
+    - journal_name: index
+      lv_name: data
+      size: 100%FREE
+
+hdd_devices: []
+
+osd_auto_discovery: false
+osd_objectstore: bluestore
 lvm_volumes:
   - data: data
     data_vg: ceph
-
-public_network: "192.168.1.0/24"
-monitor_interface: eno1
-pool_default_pg_num: 32
-common_single_host_mode: true
+    journal: index
+    journal_vg: ceph
 
 generate_fsid: false
 # If you want you can generate a new fsid using command uuidgen
 fsid: {{ ceph_fsid | default('a9cb5460-373a-4b61-95cd-923ef6d1a14a') }}
 
+openstack_config: true
+
 # To be able to remove pools add: "mon allow pool delete: true"
 ceph_conf_overrides:
   global:
-    mon pg warn max per osd: 0
-    osd pool default size: 1
+    mon_pg_warn_max_per_osd: 0
+    osd_pool_default_size: 1
+    osd_pool_default_min_size: 1
 
-radosgw_interface: eno1
-radosgw_address: '0.0.0.0'
-radosgw_address_block: subnet
+
+public_network: "192.168.1.200/24"
+# monitor_interface: eno1
+# pool_default_pg_num: 32
+# common_single_host_mode: true
+mon_host_v1:
+  enabled: False
+
+
+
+# # To be able to remove pools add: "mon allow pool delete: true"
+# ceph_conf_overrides:
+#   global:
+#     mon pg warn max per osd: 0
+#     osd pool default size: 1
+#     osd pool default min size: 1
+
+#radosgw_interface: eno1
+radosgw_address: "192.168.1.200"
+# radosgw_address_block: subnet
 
 radosgw_civetweb_port: 8088
 radosgw_thread_pool_size: 100
 radosgw_civetweb_options: "num_threads=100"
 
 radosgw_frontend_type: civetweb
-radosgw_frontend_port: "8088"
+radosgw_frontend_port: 8088
 radosgw_frontend_options: "num_threads=100"

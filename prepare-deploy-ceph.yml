@@ -16,7 +16,8 @@
       git:
         repo: "https://github.com/ceph/ceph-ansible.git"
         dest: "/opt/ceph-ansible"
-        version: v3.2.21
+        #version: v4.0.5
+        version: v3.2.35
         update: yes
 
     - name: Ensure site.yml is a copy of site.yml.sample (ceph)
@@ -24,6 +25,15 @@
         remote_src: yes
         src: /opt/ceph-ansible/site.yml.sample
         dest: /opt/ceph-ansible/site.yml
+
+    - name: Copy infrastructure playbooks (ceph)
+      copy:
+        remote_src: yes
+        src: /opt/ceph-ansible/infrastructure-playbooks/{{ item }}
+        dest: /opt/ceph-ansible/{{ item }}
+      with_items:
+        - lv-create.yml
+        - purge-cluster.yml
 
     - name: Create Ansible hosts file from template (ceph)
       template:
@@ -45,6 +55,26 @@
       template:
         src: files/bin/setup_ceph.sh.j2
         dest: /opt/bin/setup_ceph.sh
+        mode: "u=xrw,g=xr,o=xr"
+      vars:
+        working_dir: /opt/ceph-ansible
+        env_vars:
+          ANSIBLE_HOST_KEY_CHECKING: False
+
+    - name: Create setup script for Ceph LVM partitions (/opt/bin/setup_ceph_lvm.sh)
+      template:
+        src: files/bin/setup_ceph_lvm.sh.j2
+        dest: /opt/bin/setup_ceph_lvm.sh
+        mode: "u=xrw,g=xr,o=xr"
+      vars:
+        working_dir: /opt/ceph-ansible
+        env_vars:
+          ANSIBLE_HOST_KEY_CHECKING: False
+
+    - name: Create remove script for Ceph (/opt/bin/remove_ceph.sh)
+      template:
+        src: files/bin/remove_ceph.sh.j2
+        dest: /opt/bin/remove_ceph.sh
         mode: "u=xrw,g=xr,o=xr"
       vars:
         working_dir: /opt/ceph-ansible

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+{% if env_vars is defined %}
+{% for key, value in env_vars.items() %}
+export {{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+cd {{ working_dir }}
+if [ -f $HOME/venvs/ceph/bin/activate ]; then
+  . $HOME/venvs/ceph/bin/activate
+fi
+ansible-playbook --become -e "ireallymeanit=yes" -i {{ working_dir }}/hosts purge-cluster.yml
+rm {{ working_dir }}/.partitioned

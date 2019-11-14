@@ -3,10 +3,15 @@
   hosts: aio1
   become: yes
   tasks:
+    - name: Remove virsh secrets
+      shell: virsh secret-undefine $(virsh secret-list | tail -2 | head -1 | cut -d" " -f2)
+      ignore_errors: yes
+
     - name: Execute openstack-ansible lxc-containers-destroy.yml
       shell: openstack-ansible -e force_containers_destroy=yes -e force_containers_data_destroy=yes  lxc-containers-destroy.yml
       args:
         chdir: /opt/openstack-ansible/playbooks
+      ignore_errors: yes
 
     - name: On the host stop all of the services that run locally and not within a container
       shell: "systemctl stop {{ item }}"
