@@ -21,7 +21,7 @@
     - name: Create subnet in public network
       shell: ". /root/openrc && \
         openstack subnet list -f value -c Name | grep 'public-subnet' || \
-        (openstack subnet create public-subnet --network public --subnet-range 172.29.248.0/22 --no-dhcp --allocation-pool start=172.29.249.110,end=172.29.249.200 --gateway 172.29.248.100 && echo 'created')"
+        (openstack subnet create public-subnet --network public --subnet-range 172.29.248.0/22 --no-dhcp --allocation-pool start=172.29.249.110,end=172.29.249.200 --gateway 172.29.248.1 && echo 'created')"
       register: _shell_subnet
       changed_when: _shell_subnet.stdout_lines | last == 'created'
 
