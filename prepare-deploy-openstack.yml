@@ -100,6 +100,14 @@
       vars:
         working_dir: /opt/openstack-ansible/playbooks
 
+    # Not investigated what is remove so that eth0 is down after reboot
+    - name: Ensure eth0 will be configured after reboot of machine
+      copy:
+        content: |
+          auto eth0
+          iface eth0 inet dhcp
+        dest: /etc/network/interfaces.d/eth0.cfg
+
     - name: Print admin password
       debug:
         var: _cmd_admin_pass.stdout
